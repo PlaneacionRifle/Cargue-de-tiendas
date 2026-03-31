@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Store Loading - Rifle</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0c0c0c; font-family: Georgia, serif; color: #e0d8cc; min-height: 100vh; }
+input[type=range] { width: 100%; accent-color: #C9A96E; cursor: pointer; height: 4px; }
+input[type=text], input[type=number], select {
+  background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 4px;
+  color: #e0d8cc; padding: 7px 10px; font-size: 12px; width: 100%;
+  font-family: Georgia, serif;
+}
+select { cursor: pointer; }
+button { cursor: pointer; font-family: Georgia, serif; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 7px 9px; font-size: 8px; letter-spacing: 2px;
+     text-transform: uppercase; color: #444; border-bottom: 1px solid #1e1e1e;
+     white-space: nowrap; }
+td { padding: 7px 9px; border-bottom: 1px solid #161616; font-size: 11px; cursor: pointer; }
+tr:hover td { background: #161410; }
+.card { background: #121212; border: 1px solid #1e1e1e; border-radius: 8px; padding: 16px; margin-bottom: 14px; }
+.sec-title { font-size: 9px; letter-spacing: 3.5px; text-transform: uppercase;
+             color: #C9A96E; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.sec-title span { width: 2px; height: 13px; background: #C9A96E; display: inline-block; }
+.badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 9px;
+         letter-spacing: 1.5px; font-weight: 700; }
+.btn-gold { background: #C9A96E; color: #0c0c0c; border: none; padding: 7px 15px;
+            border-radius: 4px; font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+            font-weight: 700; }
+.btn-dark { background: #1e1e1e; color: #666; border: none; padding: 7px 15px;
+            border-radius: 4px; font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+            font-weight: 700; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; }
+.stat-box { background: #0e0e0e; border-radius: 5px; padding: 10px 12px; }
+.stat-label { font-size: 8px; color: #444; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px; }
+.stat-val { font-size: 12px; }
+.bar-wrap { flex: 1; height: 4px; background: #222; border-radius: 2px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+.detail-panel { border-left: 3px solid #C9A96E; background: #111; border-radius: 8px; padding: 18px; border: 1px solid #1e1e1e; }
+.scrollable { max-height: 420px; overflow-y: auto; }
+.sld-row { margin-bottom: 12px; }
+.sld-header { display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 11px; }
+.sld-val { color: #C9A96E; font-weight: 600; font-size: 12px; }
+.highlight-A { color: #C9A96E; } .highlight-B { color: #7AAEC9; }
+.highlight-C { color: #C9917A; } .highlight-Bp { color: #8BBF7A; }
+.tab-btn { background: none; border: none; padding: 11px 18px; font-size: 10px;
+           letter-spacing: 2.5px; text-transform: uppercase; color: #444;
+           border-bottom: 2px solid transparent; font-family: Georgia, serif; }
+.tab-btn.active { color: #C9A96E; border-bottom: 2px solid #C9A96E; }
+#upload-zone { border: 1px dashed #333; border-radius: 6px; padding: 20px;
+               text-align: center; cursor: pointer; margin-bottom: 14px; }
+#upload-zone:hover { border-color: #C9A96E; }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+// ── DATA ────────────────────────────────────────────────────────────────────
+const MEDIANA = 4.6;
+
+const STORES_DEFAULT = [
+  {id:2615,n:"Mayorca Sabaneta",c:"Sabaneta",s:"B",m:78.05,v:1483,h:60.8},
+  {id:2939,n:"Viva Envigado",c:"Envigado",s:"A",m:113,v:2861,h:56.1},
+  {id:2606,n:"Los Molinos",c:"Medellin",s:"A",m:99.1,v:1568,h:58.3},
+  {id:2657,n:"Premium Plaza",c:"Medellin",s:"A",m:290,v:1389,h:59.3},
+  {id:2582,n:"Guayaquil",c:"Medellin",s:"C",m:36,v:1970,h:64.1},
+  {id:2649,n:"Puerta Norte Bello",c:"Bello",s:"B+",m:87.12,v:1610,h:58.0},
+  {id:2652,n:"Unico Barranquilla",c:"Barranquilla",s:"A",m:115,v:2077,h:57.7},
+  {id:2628,n:"La 65",c:"Medellin",s:"B+",m:132.4,v:1194,h:59.8},
+  {id:2690,n:"San Nicolas Rionegro",c:"Rionegro",s:"A",m:137.08,v:1536,h:59.7},
+  {id:2774,n:"Unico Pasto",c:"Pasto",s:"B+",m:120,v:1222,h:54.2},
+  {id:2781,n:"Guayabal 2",c:"Medellin",s:"A",m:92.6,v:2251,h:60.3},
+  {id:2687,n:"Caldas Ant",c:"Caldas",s:"A",m:140,v:1167,h:57.0},
+  {id:2708,n:"Unico Cali",c:"Cali",s:"B+",m:110,v:1440,h:54.8},
+  {id:2655,n:"Guacari Sincelejo",c:"Sincelejo",s:"A",m:158,v:1488,h:56.4},
+  {id:2027,n:"Parque Fabricato",c:"Bello",s:"A",m:81.4,v:1534,h:60.7},
+  {id:2729,n:"Gran Plaza",c:"Medellin",s:"A",m:96.42,v:1552,h:58.5},
+  {id:2618,n:"Itagui",c:"Itagui",s:"A",m:98,v:1473,h:58.4},
+  {id:2057,n:"Arkadia",c:"Medellin",s:"A",m:106,v:1314,h:57.2},
+  {id:2815,n:"Florida",c:"Medellin",s:"B",m:42.36,v:1023,h:56.1},
+  {id:2654,n:"Sabaneta",c:"Sabaneta",s:"B+",m:92,v:976,h:57.8},
+  {id:2732,n:"Santafe",c:"Medellin",s:"A",m:100.89,v:1055,h:57.9},
+  {id:2756,n:"La Central",c:"Medellin",s:"B",m:83.85,v:1094,h:57.8},
+  {id:2811,n:"Villavicencio Amb",c:"Villavicencio",s:"B+",m:87,v:1340,h:59.3},
+  {id:2503,n:"Nuestro Monteria",c:"Monteria",s:"B+",m:99.1,v:1474,h:61.6},
+  {id:2972,n:"Unicentro",c:"Medellin",s:"B+",m:95,v:1018,h:55.5},
+  {id:2646,n:"Dos Quebradas",c:"Dosquebradas",s:"B",m:88,v:1190,h:65.9},
+  {id:2971,n:"Megaplaza Mayorca",c:"Sabaneta",s:"A",m:107.24,v:1042,h:58.5},
+  {id:2658,n:"Terminal Norte",c:"Medellin",s:"B+",m:50.95,v:970,h:54.6},
+  {id:2521,n:"Mayorista",c:"Medellin",s:"C",m:171.5,v:678,h:68.5},
+  {id:2751,n:"Viva Medellin",c:"Medellin",s:"B+",m:71,v:953,h:54.5},
+  {id:2738,n:"City Plaza Envigado",c:"Envigado",s:"A",m:77.36,v:1320,h:57.7},
+  {id:2812,n:"Villavicencio",c:"Villavicencio",s:"B",m:98.24,v:1131,h:57.1},
+  {id:2775,n:"Nutibara",c:"Medellin",s:"B",m:118.85,v:556,h:59.2},
+  {id:2600,n:"Sucre",c:"Medellin",s:"B",m:70,v:768,h:55.7},
+  {id:2691,n:"Bello",c:"Bello",s:"C",m:91,v:786,h:60.2},
+  {id:2886,n:"Aventura",c:"Medellin",s:"B+",m:104,v:648,h:55.3},
+  {id:2632,n:"Centro De La Moda",c:"Itagui",s:"C",m:38,v:542,h:56.3},
+  {id:2973,n:"Viva La Ceja",c:"La Ceja",s:"B+",m:82.8,v:755,h:56.6},
+  {id:2988,n:"Viva Barranquilla",c:"Barranquilla",s:"A",m:106.93,v:728,h:61.6},
+  {id:2780,n:"La Ceja",c:"La Ceja",s:"C",m:30.84,v:664,h:57.4},
+  {id:2884,n:"Unico Neiva",c:"Neiva",s:"B",m:68.15,v:1036,h:56.6},
+  {id:2659,n:"Pasaje Astoria",c:"Medellin",s:"C",m:39,v:508,h:58.4},
+  {id:2940,n:"Viva Tunja",c:"Tunja",s:"B",m:77.1,v:604,h:58.2},
+  {id:2731,n:"Los Molinos 2",c:"Medellin",s:"B+",m:77.4,v:707,h:56.5},
+  {id:2935,n:"Mall Plaza Manizales",c:"Manizales",s:"B+",m:72,v:642,h:49.5},
+  {id:2053,n:"Parque Caracoli BGA",c:"Bucaramanga",s:"B+",m:49,v:512,h:58.7},
+  {id:2101,n:"San Diego",c:"Medellin",s:"B+",m:58.49,v:726,h:54.1},
+  {id:2135,n:"Unico Bucaramanga",c:"Bucaramanga",s:"B",m:104.7,v:908,h:58.8},
+  {id:2130,n:"Florida 2",c:"Medellin",s:"B",m:79.2,v:846,h:61.9},
+  {id:2306,n:"Mall Plaza NQS Bogota",c:"Bogota",s:"A",m:101.59,v:627,h:56.4},
+  {id:2126,n:"Nuestro Uraba",c:"Uraba",s:"B",m:50.43,v:564,h:58.9},
+  {id:2052,n:"Parque Arboleda Pereira",c:"Pereira",s:"A",m:null,v:737,h:59.9},
+  {id:2814,n:"Sincelejo",c:"Sincelejo",s:"B",m:null,v:508,h:62.0},
+  {id:2167,n:"Mayorca",c:"Sabaneta",s:"B+",m:null,v:1144,h:52.8},
+  {id:2949,n:"De Moda Outlet",c:"Medellin",s:"C",m:null,v:1233,h:60.2},
+];
+
+const MIX_H = {Camisetas:28.5,Camisas:13.5,Jeans:31.0,Pantalones:5.3,Polos:14.1,Shorts:3.5,Chaquetas:2.1,Buzos:2.0};
+const MIX_M = {Camisetas:31.8,Camisas:17.0,Jeans:25.0,Pantalones:10.0,Vestidos:2.8,Faldas:1.9,Shorts:3.4,Chaquetas:4.6,Buzos:3.5};
+const SEG_COL = {A:"#C9A96E","B+":"#8BBF7A",B:"#7AAEC9",C:"#C9917A"};
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let state = {
+  tab: "vestido",
+  density: 1.8,
+  colTotal: 150,
+  sel: null,
+  segF: "ALL",
+  colF: "ALL",
+  stores: JSON.parse(JSON.stringify(STORES_DEFAULT)),
+  nueva: {n:"Nueva Tienda",c:"",s:"A",m:100,v:1200,h:58},
+  editId: null,
+  editBuf: {},
+  showAddForm: false,
+  newStore: {n:"",c:"",s:"A",m:"",v:"",h:58},
+  uploadMsg: ""
+};
+
+// ── HELPERS ────────────────────────────────────────────────────────────────
+function getCurva(v) { return v>=2000?30:v>=1500?20:v>=1000?12:8; }
+
+function calcStore(s, density, colTotal) {
+  const techo = s.m ? Math.round(s.m * density) : null;
+  const xVenta = Math.round(s.v / MEDIANA);
+  const opt = techo ? Math.min(techo, xVenta) : xVenta;
+  const completa = opt >= colTotal;
+  const refsH = Math.round(opt * s.h / 100);
+  const refsM = opt - refsH;
+  const cats = (refs, mix) => Object.fromEntries(Object.entries(mix).map(([k,p])=>[k,Math.round(refs*p/100)]));
+  return {...s, techo, xVenta, opt, curva:getCurva(s.v), completa, refsH, refsM,
+    cH:cats(refsH,MIX_H), cM:cats(refsM,MIX_M),
+    limitante:techo?(techo<xVenta?"Espacio":"Venta"):"Sin m2"};
+}
+
+function getResults() {
+  return state.stores.map(s => calcStore(s, state.density, state.colTotal));
+}
+
+function badge(label, seg) {
+  const col = SEG_COL[seg] || "#888";
+  return `<span class="badge" style="color:${col};background:${col}18;border:1px solid ${col}44">${label}</span>`;
+}
+
+function barHtml(v, max, color) {
+  const pct = Math.min((v/max)*100,100);
+  return `<div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>`;
+}
+
+function exportExcel() {
+  const rows = getResults().map(r=>({
+    POS:r.id, Tienda:r.n, Ciudad:r.c, Segmento:r.s,
+    "M2":r.m||'ND', "Vta Prom Mensual (u)":r.v,
+    "Techo Fisico (refs)":r.techo||'ND', "Refs x Venta":r.xVenta,
+    "REFS OPTIMAS":r.opt, "Curva Min (u/ref)":r.curva,
+    "Coleccion Completa":r.completa?"SI":"NO", "Limitante":r.limitante,
+    "Refs Hombre":r.refsH, "H-Camisetas":r.cH.Camisetas, "H-Camisas":r.cH.Camisas,
+    "H-Jeans":r.cH.Jeans, "H-Pantalones":r.cH.Pantalones, "H-Polos":r.cH.Polos,
+    "H-Shorts":r.cH.Shorts, "H-Chaquetas":r.cH.Chaquetas, "H-Buzos":r.cH.Buzos,
+    "Refs Mujer":r.refsM, "M-Camisetas":r.cM.Camisetas, "M-Camisas":r.cM.Camisas,
+    "M-Jeans":r.cM.Jeans, "M-Pantalones":r.cM.Pantalones, "M-Vestidos":r.cM.Vestidos,
+    "M-Faldas":r.cM.Faldas, "M-Shorts":r.cM.Shorts, "M-Chaquetas":r.cM.Chaquetas, "M-Buzos":r.cM.Buzos
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Vestido Tiendas");
+  XLSX.writeFile(wb, "vestido_tiendas_rifle.xlsx");
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────────────
+function render() {
+  document.getElementById('app').innerHTML = buildApp();
+  attachEvents();
+}
+
+function buildApp() {
+  const results = getResults();
+  const nC = results.filter(r=>r.completa).length;
+  const nS = results.filter(r=>!r.completa).length;
+  return `
+  <div style="background:#141210;border-bottom:1px solid #282218;padding:16px 24px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:9px;letter-spacing:5px;color:#C9A96E;margin-bottom:4px">RIFLE - PLANEACION DE PRODUCTO</div>
+        <div style="font-size:20px;font-weight:400;letter-spacing:2px;color:#f0e8d8">Smart Store Loading</div>
+        <div style="font-size:10px;color:#555;margin-top:2px">Vestido por productividad real &bull; Mediana cadena: ${MEDIANA} u/ref/mes &bull; Threshold &gt;1 unidad</div>
+      </div>
+      <div style="display:flex;gap:20px;text-align:right">
+        ${[["Tiendas",state.stores.length],["Col. Completa",nC],["Segmentadas",nS]].map(([l,v])=>
+          `<div><div style="font-size:20px;font-weight:300;color:#C9A96E">${v}</div><div style="font-size:8px;color:#444;letter-spacing:1.5px;text-transform:uppercase">${l}</div></div>`
+        ).join('')}
+      </div>
+    </div>
+  </div>
+  <div style="background:#0f0f0f;border-bottom:1px solid #1e1e1e;padding:0 24px;display:flex">
+    ${[["vestido","01 Vestido"],["coleccion","02 Coleccion"],["nueva","03 Nueva Tienda"],["tiendas","04 Mis Tiendas"],["params","05 Parametros"]].map(([id,lb])=>
+      `<button class="tab-btn ${state.tab===id?'active':''}" onclick="setTab('${id}')">${lb}</button>`
+    ).join('')}
+  </div>
+  <div style="padding:20px 24px;max-width:1500px;margin:0 auto">
+    ${buildTab()}
+  </div>`;
+}
+
+function buildTab() {
+  if (state.tab==="vestido") return buildVestido();
+  if (state.tab==="coleccion") return buildColeccion();
+  if (state.tab==="nueva") return buildNueva();
+  if (state.tab==="tiendas") return buildTiendas();
+  if (state.tab==="params") return buildParams();
+  return '';
+}
+
+function buildVestido() {
+  const results = getResults();
+  const filtered = results.filter(r=>(state.segF==="ALL"||r.s===state.segF)&&(state.colF==="ALL"||(state.colF==="si"&&r.completa)||(state.colF==="no"&&!r.completa)));
+  const maxOpt = Math.max(...results.map(r=>r.opt),1);
+  const sel = results.find(r=>r.id===state.sel);
+
+  const table = `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div class="sec-title"><span></span>Vestido optimo - ${filtered.length} tiendas</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select onchange="setSegF(this.value)" style="width:auto">
+        <option value="ALL" ${state.segF==="ALL"?"selected":""}>Todos los seg.</option>
+        ${["A","B+","B","C"].map(s=>`<option value="${s}" ${state.segF===s?"selected":""}>${s}</option>`).join('')}
+      </select>
+      <select onchange="setColF(this.value)" style="width:auto">
+        <option value="ALL" ${state.colF==="ALL"?"selected":""}>Todas</option>
+        <option value="si" ${state.colF==="si"?"selected":""}>Col. completa</option>
+        <option value="no" ${state.colF==="no"?"selected":""}>Segmentadas</option>
+      </select>
+      <button class="btn-gold" onclick="exportExcel()">Exportar Excel</button>
+    </div>
+  </div>
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table>
+      <thead><tr style="background:#0e0e0e">
+        <th>Tienda</th><th>Seg</th><th>M2</th><th>Vta Prom</th>
+        <th>Techo</th><th>x Venta</th><th style="color:#C9A96E">REFS OPT</th>
+        <th style="color:#8BBF7A">Curva</th><th>Coleccion</th><th style="color:#7AAEC9">H</th><th style="color:#e8a0b0">M</th>
+      </tr></thead>
+      <tbody>
+        ${filtered.map(r=>`
+          <tr onclick="setSel(${r.id})" style="${state.sel===r.id?'background:#1a1810':''}">
+            <td style="font-weight:${state.sel===r.id?600:400};color:${state.sel===r.id?'#C9A96E':'inherit'}">${r.n}</td>
+            <td>${badge(r.s,r.s)}</td>
+            <td style="color:${r.m?'#888':'#c97a7a'}">${r.m||'?'}</td>
+            <td style="color:#888">${r.v.toLocaleString()}</td>
+            <td style="color:#666">${r.techo||'-'}</td>
+            <td style="color:#888">${r.xVenta}</td>
+            <td><div style="display:flex;align-items:center;gap:6px"><span style="font-size:13px;font-weight:700;color:#C9A96E;min-width:26px">${r.opt}</span>${barHtml(r.opt,maxOpt,'#C9A96E')}</div></td>
+            <td style="color:#8BBF7A;font-weight:700">${r.curva}u</td>
+            <td><span style="color:${r.completa?'#8BBF7A':'#C9917A'};font-size:10px;font-weight:600">${r.completa?'COMPLETA':'SEGMENTADA'}</span></td>
+            <td style="color:#7AAEC9;font-weight:600">${r.refsH}</td>
+            <td style="color:#e8a0b0;font-weight:600">${r.refsM}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+  <div style="margin-top:8px;font-size:9px;color:#3a3a3a;line-height:1.6">
+    Metodologia: Refs optimas = MIN(techo fisico, refs por venta). Techo = m2 x ${state.density} refs/m2. Refs por venta = venta prom / ${MEDIANA} u/ref (mediana cadena 2025). Curva: &lt;1000u=8 | 1000-1500=12 | 1500-2000=20 | &gt;2000=30 u/ref.
+  </div>`;
+
+  const detalle = sel ? `
+  <div class="detail-panel" style="position:fixed;top:0;right:0;width:340px;height:100vh;overflow-y:auto;z-index:100;padding:20px;background:#111;border-left:3px solid #C9A96E;box-shadow:-4px 0 20px rgba(0,0,0,0.5)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div>
+        <div style="font-size:14px;color:#f0e8d8">${sel.n}</div>
+        <div style="font-size:10px;color:#555;margin-top:2px">${sel.c} &bull; POS ${sel.id}</div>
+      </div>
+      <button style="background:none;border:none;color:#555;font-size:18px;cursor:pointer;padding:0 4px" onclick="setSel(null)">&#x2715;</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:14px">
+      ${[["Segmento",badge(sel.s,sel.s)],["Curva",`<span style="color:#8BBF7A;font-weight:700">${sel.curva} u/ref</span>`],["Techo fisico",sel.techo?`${sel.techo} refs`:"Sin m2"],["Refs x Venta",sel.xVenta],["REFS OPTIMAS",`<span style="color:#C9A96E;font-weight:700;font-size:18px">${sel.opt}</span>`],["Limitante",`<span style="color:${sel.limitante==="Espacio"?'#c97a7a':'#8BBF7A'};font-size:10px">${sel.limitante}</span>`]].map(([l,v])=>`
+        <div class="stat-box"><div class="stat-label">${l}</div><div class="stat-val">${v}</div></div>`).join('')}
+    </div>
+    <div style="height:1px;background:#222;margin-bottom:14px"></div>
+    ${[["Hombre",sel.refsH,Object.entries(sel.cH),"#7AAEC9"],["Mujer",sel.refsM,Object.entries(sel.cM),"#e8a0b0"]].map(([g,refs,cats,col])=>`
+      <div style="margin-bottom:16px">
+        <div style="font-size:8px;color:${col};letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px;font-weight:700">${g} &mdash; ${refs} referencias</div>
+        ${cats.map(([cat,val])=>`
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:11px;color:#666;width:80px;flex-shrink:0">${cat}</span>
+            ${barHtml(val,Math.max(...cats.map(c=>c[1]),1),col)}
+            <span style="font-size:12px;color:${col};font-weight:700;min-width:24px;text-align:right">${val}</span>
+          </div>`).join('')}
+      </div>`).join('')}
+  </div>` : '';
+
+  return `<div>${table}${detalle}</div>`;
+}
+
+function buildColeccion() {
+  const results = getResults();
+  const nC = results.filter(r=>r.completa).length;
+  const nS = results.filter(r=>!r.completa).length;
+  return `
+  <div class="grid-2" style="margin-bottom:16px">
+    <div class="card">
+      <div class="sec-title"><span></span>Total referencias en la coleccion</div>
+      <div class="sld-row">
+        <div class="sld-header"><span>Total refs coleccion</span><span class="sld-val">${state.colTotal} refs</span></div>
+        <input type="range" min="50" max="400" step="5" value="${state.colTotal}" oninput="setColTotal(this.value)">
+      </div>
+      <div style="font-size:10px;color:#555;line-height:1.6">Tiendas con refs optimas >= ${state.colTotal} reciben coleccion completa. Las demas necesitan curacion desde la compra.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      ${[["Col. completa",nC,"#8BBF7A","Reciben todo lo comprado"],["Segmentadas",nS,"#C9917A","Necesitan curacion"],["Sin m2",results.filter(r=>!r.m).length,"#666","Requieren dato m2"],["Total",state.stores.length,"#C9A96E","Tiendas en el modelo"]].map(([l,v,col,sub])=>`
+        <div style="background:#0e0e0e;border:1px solid ${col}33;border-radius:7px;padding:12px 14px">
+          <div style="font-size:22px;font-weight:300;color:${col}">${v}</div>
+          <div style="font-size:10px;color:${col};margin-top:3px">${l}</div>
+          <div style="font-size:9px;color:#555;margin-top:2px">${sub}</div>
+        </div>`).join('')}
+    </div>
+  </div>
+  <div class="grid-2">
+    ${[[true,"#8BBF7A","COLECCION COMPLETA"],[false,"#C9917A","COLECCION SEGMENTADA"]].map(([flag,col,title])=>{
+      const grp = results.filter(r=>r.completa===flag).sort((a,b)=>b.opt-a.opt);
+      return `
+      <div class="card">
+        <div class="sec-title" style="color:${col}"><span style="background:${col}"></span>${title} - ${grp.length} tiendas</div>
+        <div class="scrollable">
+          <table><thead><tr>
+            ${["Tienda","Seg","Refs Opt","Techo","xVenta","Curva"].map(h=>`<th>${h}</th>`).join('')}
+          </tr></thead><tbody>
+            ${grp.map(r=>`<tr>
+              <td>${r.n}</td><td>${badge(r.s,r.s)}</td>
+              <td style="font-weight:700;color:${col}">${r.opt}</td>
+              <td style="color:#666">${r.techo||'-'}</td>
+              <td style="color:#666">${r.xVenta}</td>
+              <td style="color:#8BBF7A;font-weight:700">${r.curva}u</td>
+            </tr>`).join('')}
+          </tbody></table>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function buildNueva() {
+  const nv = state.nueva;
+  const nvT = Math.round(nv.m * state.density);
+  const nvX = Math.round(nv.v / MEDIANA);
+  const nvO = Math.min(nvT, nvX);
+  const nvCv = getCurva(nv.v);
+  const nvH = Math.round(nvO * nv.h / 100);
+  const nvM = nvO - nvH;
+  const nvCH = Object.entries(MIX_H).map(([k,p])=>[k,Math.round(nvH*p/100)]);
+  const nvCM = Object.entries(MIX_M).map(([k,p])=>[k,Math.round(nvM*p/100)]);
+
+  return `
+  <div style="display:grid;grid-template-columns:340px 1fr;gap:20px">
+    <div class="card">
+      <div class="sec-title"><span></span>Datos de la nueva tienda</div>
+      <div style="margin-bottom:9px"><div style="font-size:10px;color:#666;margin-bottom:3px">Nombre</div>
+        <input type="text" value="${nv.n}" oninput="setNueva('n',this.value)"></div>
+      <div style="margin-bottom:9px"><div style="font-size:10px;color:#666;margin-bottom:3px">Ciudad</div>
+        <input type="text" value="${nv.c}" oninput="setNueva('c',this.value)"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:9px">
+        <div><div style="font-size:10px;color:#666;margin-bottom:3px">Segmento</div>
+          <select onchange="setNueva('s',this.value)">
+            ${["A","B+","B","C"].map(s=>`<option ${nv.s===s?"selected":""}>${s}</option>`).join('')}
+          </select></div>
+        <div><div style="font-size:10px;color:#666;margin-bottom:3px">M2</div>
+          <input type="number" value="${nv.m}" oninput="setNueva('m',+this.value)"></div>
+      </div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:10px;color:#666;margin-bottom:3px">Venta mensual estimada (unidades)</div>
+        <input type="number" value="${nv.v}" oninput="setNueva('v',+this.value)">
+        <div style="font-size:9px;color:#555;margin-top:3px">Curva asignada: <span style="color:#8BBF7A;font-weight:700">${nvCv} u/ref</span></div>
+      </div>
+      <div class="sld-row">
+        <div class="sld-header"><span style="font-size:11px;color:#888">% Hombre</span><span class="sld-val">${nv.h}%</span></div>
+        <input type="range" min="30" max="80" step="1" value="${nv.h}" oninput="setNueva('h',+this.value)">
+      </div>
+      <div style="font-size:9px;color:#e8a0b0;margin-top:-6px">% Mujer: ${100-nv.h}%</div>
+    </div>
+    <div class="detail-panel" style="border-radius:8px;border:1px solid #1e1e1e">
+      <div style="font-size:16px;font-weight:300;color:#f0e8d8;margin-bottom:2px">${nv.n||"Nueva Tienda"}</div>
+      <div style="font-size:10px;color:#555;margin-bottom:16px">${nv.c} - Seg. ${nv.s} - ${nv.m} m2</div>
+      <div class="grid-3" style="margin-bottom:18px">
+        ${[["Techo fisico",`${nvT} refs`,"#666"],["Refs por venta",`${nvX} refs`,"#888"],["REFS OPTIMAS",nvO,"#C9A96E"],["Curva minima",`${nvCv} u/ref`,"#8BBF7A"],["Limitante",nvT<nvX?"Espacio":"Venta",nvT<nvX?"#c97a7a":"#8BBF7A"],["Coleccion",nvO>=state.colTotal?"Completa":"Segmentada",nvO>=state.colTotal?"#8BBF7A":"#C9917A"]].map(([l,v,col])=>`
+          <div class="stat-box">
+            <div class="stat-label">${l}</div>
+            <div style="font-size:${l==="REFS OPTIMAS"?20:12}px;font-weight:${l==="REFS OPTIMAS"?300:400};color:${col}">${v}</div>
+          </div>`).join('')}
+      </div>
+      <div class="grid-2">
+        ${[["Hombre",nvH,nvCH,"#7AAEC9",nv.h],["Mujer",nvM,nvCM,"#e8a0b0",100-nv.h]].map(([g,refs,cats,col,pct])=>`
+          <div>
+            <div style="font-size:8px;color:${col};letter-spacing:2.5px;text-transform:uppercase;margin-bottom:9px">${g} - ${refs} refs (${pct}%)</div>
+            ${cats.map(([cat,val])=>`
+              <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px">
+                <span style="font-size:10px;color:#666;width:72px">${cat}</span>
+                ${barHtml(val,Math.max(...cats.map(c=>c[1]),1),col)}
+                <span style="font-size:11px;color:${col};font-weight:600;min-width:20px;text-align:right">${val}</span>
+              </div>`).join('')}
+          </div>`).join('')}
+      </div>
+      <div style="margin-top:14px;padding:11px 13px;background:#0e0e0e;border-radius:6px">
+        <div style="font-size:9px;color:#C9A96E;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:7px">Presupuesto de compra estimado</div>
+        <div class="grid-3">
+          ${[["Refs a comprar",nvO,"#C9A96E"],["Curva minima",`${nvCv} u/ref`,"#8BBF7A"],["Unidades totales",(nvO*nvCv).toLocaleString(),"#e8a0b0"]].map(([l,v,col])=>`
+            <div><div style="font-size:10px;color:#555">${l}</div><div style="font-size:18px;font-weight:700;color:${col};margin-top:2px">${v}</div></div>`).join('')}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildTiendas() {
+  const addForm = state.showAddForm ? `
+  <div class="card" style="border:1px solid #C9A96E44;margin-bottom:14px">
+    <div class="sec-title"><span></span>Agregar nueva tienda</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      ${[["n","Nombre"],["c","Ciudad"]].map(([k,l])=>`
+        <div><div style="font-size:10px;color:#666;margin-bottom:3px">${l}</div>
+          <input type="text" id="add-${k}" value="${state.newStore[k]}" oninput="setNewStore('${k}',this.value)">
+        </div>`).join('')}
+      <div><div style="font-size:10px;color:#666;margin-bottom:3px">Segmento</div>
+        <select id="add-s" onchange="setNewStore('s',this.value)">
+          ${["A","B+","B","C"].map(s=>`<option ${state.newStore.s===s?"selected":""}>${s}</option>`).join('')}
+        </select></div>
+      <div><div style="font-size:10px;color:#666;margin-bottom:3px">M2</div>
+        <input type="number" id="add-m" value="${state.newStore.m}" oninput="setNewStore('m',+this.value)"></div>
+      <div><div style="font-size:10px;color:#666;margin-bottom:3px">Vta Prom Mensual (u)</div>
+        <input type="number" id="add-v" value="${state.newStore.v}" oninput="setNewStore('v',+this.value)"></div>
+      <div><div style="font-size:10px;color:#666;margin-bottom:3px">% Hombre</div>
+        <input type="number" id="add-h" value="${state.newStore.h}" min="20" max="85" oninput="setNewStore('h',+this.value)"></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-gold" onclick="addStore()">Agregar tienda</button>
+      <button class="btn-dark" onclick="toggleAddForm()">Cancelar</button>
+    </div>
+  </div>` : '';
+
+  const uploadMsg = state.uploadMsg ? `<div style="font-size:11px;color:${state.uploadMsg.startsWith('OK')?'#8BBF7A':'#c97a7a'};margin-bottom:8px">${state.uploadMsg}</div>` : '';
+
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="sec-title"><span></span>Mis tiendas - ${state.stores.length} tiendas</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <label class="btn-dark" style="cursor:pointer">
+        Cargar Excel
+        <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleUpload(this)">
+      </label>
+      <button class="btn-dark" onclick="resetStores()">Restaurar datos originales</button>
+      <button class="btn-gold" onclick="toggleAddForm()">+ Agregar tienda</button>
+    </div>
+  </div>
+  ${uploadMsg}
+  <div style="font-size:10px;color:#555;margin-bottom:12px;line-height:1.6">
+    Para actualizar masivamente: sube un Excel con columnas <strong style="color:#888">POS, M2, VtaProm, %Hombre</strong>. Solo se actualizan las tiendas cuyo POS coincida.
+  </div>
+  ${addForm}
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table>
+      <thead><tr style="background:#0e0e0e">
+        <th>POS</th><th>Tienda</th><th>Ciudad</th><th>Seg</th><th>M2</th><th>Vta Prom (u)</th><th>% Hombre</th><th></th><th></th>
+      </tr></thead>
+      <tbody>
+        ${state.stores.map(s=>{
+          if (state.editId===s.id) return `
+            <tr style="background:#1a1810">
+              <td style="color:#555">${s.id}</td>
+              <td><input type="text" value="${state.editBuf.n}" oninput="setEditBuf('n',this.value)" style="width:130px"></td>
+              <td><input type="text" value="${state.editBuf.c}" oninput="setEditBuf('c',this.value)" style="width:100px"></td>
+              <td><select onchange="setEditBuf('s',this.value)" style="width:60px">${["A","B+","B","C"].map(sg=>`<option ${state.editBuf.s===sg?"selected":""}>${sg}</option>`).join('')}</select></td>
+              <td><input type="number" value="${state.editBuf.m||''}" oninput="setEditBuf('m',+this.value)" style="width:70px"></td>
+              <td><input type="number" value="${state.editBuf.v}" oninput="setEditBuf('v',+this.value)" style="width:80px"></td>
+              <td><input type="number" value="${state.editBuf.h}" min="20" max="85" oninput="setEditBuf('h',+this.value)" style="width:60px"></td>
+              <td><button class="btn-gold" style="padding:4px 10px;font-size:9px" onclick="saveEdit()">Guardar</button></td>
+              <td><button class="btn-dark" style="padding:4px 10px;font-size:9px" onclick="cancelEdit()">Cancelar</button></td>
+            </tr>`;
+          return `
+            <tr>
+              <td style="color:#555">${s.id}</td>
+              <td style="font-weight:500">${s.n}</td>
+              <td style="color:#666">${s.c}</td>
+              <td>${badge(s.s,s.s)}</td>
+              <td style="color:${s.m?'#888':'#c97a7a'}">${s.m||'?'}</td>
+              <td style="color:#888">${s.v.toLocaleString()}</td>
+              <td style="color:#aaa">${s.h}%</td>
+              <td><button class="btn-dark" style="padding:4px 10px;font-size:9px" onclick="startEdit(${s.id})">Editar</button></td>
+              <td><button style="background:none;border:none;color:#553333;cursor:pointer;font-size:12px" onclick="deleteStore(${s.id})">x</button></td>
+            </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function buildParams() {
+  return `
+  <div class="grid-2">
+    <div>
+      <div class="card">
+        <div class="sec-title"><span></span>Parametros del modelo</div>
+        <div class="sld-row">
+          <div class="sld-header"><span>Factor de densidad (refs / m2)</span><span class="sld-val">${state.density} refs/m2</span></div>
+          <input type="range" min="0.8" max="3.5" step="0.1" value="${state.density}" oninput="setDensity(this.value)">
+        </div>
+        <div style="font-size:10px;color:#555;line-height:1.6;margin-bottom:14px">Default industria moda: 1.5 a 2.5 refs/m2. Rifle arranca con 1.8. Calibrar midiendo racks en 2 o 3 tiendas piloto.</div>
+        <div class="sld-row">
+          <div class="sld-header"><span>Total referencias en la coleccion</span><span class="sld-val">${state.colTotal} refs</span></div>
+          <input type="range" min="50" max="400" step="5" value="${state.colTotal}" oninput="setColTotal(this.value)">
+        </div>
+        <div style="font-size:10px;color:#555;line-height:1.6">Linea entre coleccion completa y segmentada.</div>
+      </div>
+      <div class="card">
+        <div class="sec-title"><span style="background:#8BBF7A"></span>Curvas minimas por nivel de venta</div>
+        ${[["Menos de 1.000 u/mes","8 u/ref"],["1.000 a 1.500 u/mes","12 u/ref"],["1.500 a 2.000 u/mes","20 u/ref"],["Mas de 2.000 u/mes","30 u/ref"]].map(([r,cv])=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:#0e0e0e;border-radius:5px;margin-bottom:6px">
+            <span style="font-size:11px;color:#888">${r}</span>
+            <span style="font-size:14px;font-weight:700;color:#8BBF7A">${cv}</span>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="sec-title"><span style="background:#C9917A"></span>Base del modelo - Datos reales 2025</div>
+      ${[["Mediana productividad cadena",`${MEDIANA} u/ref activa/mes`,"Base para calcular refs por venta en todas las tiendas"],["Threshold referencia activa","> 1 unidad/mes","Una referencia cuenta si vendio mas de 1 unidad en el mes"],["Tiendas con datos completos","63 tiendas","Minimo 6 meses de historial de venta por referencia en 2025"],["Factor densidad default","1.8 refs/m2","Rango industria moda: 1.5 a 2.5. Pendiente calibracion campo."]].map(([l,v,d])=>`
+        <div style="border-left:2px solid #C9A96E33;padding:9px 12px;margin-bottom:9px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+            <span style="font-size:11px;color:#888">${l}</span>
+            <span style="font-size:11px;color:#C9A96E;font-weight:600">${v}</span>
+          </div>
+          <div style="font-size:10px;color:#555">${d}</div>
+        </div>`).join('')}
+      <div style="margin-top:16px;padding:14px;background:#0e0e0e;border-radius:6px">
+        <div style="font-size:9px;color:#C9A96E;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:8px">Actualizacion de datos</div>
+        <div style="font-size:11px;color:#666;line-height:1.7">Para actualizar las tiendas con datos nuevos, ve a la pestana "Mis Tiendas" y usa el boton "Cargar Excel". El archivo debe tener columnas: POS, M2, VtaProm, %Hombre. Solo se actualizan las tiendas cuyo POS coincida con los datos cargados.</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── EVENT HANDLERS ──────────────────────────────────────────────────────────
+function setTab(t) { state.tab=t; state.sel=null; render(); }
+function setDensity(v) { state.density=parseFloat(v); render(); }
+function setColTotal(v) { state.colTotal=parseInt(v); render(); }
+function setSel(id) { state.sel=state.sel===id?null:id; render(); }
+function setSegF(v) { state.segF=v; render(); }
+function setColF(v) { state.colF=v; render(); }
+function setNueva(k,v) { state.nueva[k]=v; render(); }
+function toggleAddForm() { state.showAddForm=!state.showAddForm; render(); }
+function setNewStore(k,v) { state.newStore[k]=v; }
+function setEditBuf(k,v) { state.editBuf[k]=v; }
+
+function addStore() {
+  const ns = state.newStore;
+  if (!ns.n || !ns.v) return;
+  const id = Math.max(...state.stores.map(s=>s.id),0)+1;
+  state.stores.push({id, n:ns.n, c:ns.c, s:ns.s, m:ns.m||null, v:+ns.v, h:+ns.h||58});
+  state.newStore = {n:"",c:"",s:"A",m:"",v:"",h:58};
+  state.showAddForm = false;
+  render();
+}
+
+function startEdit(id) {
+  const s = state.stores.find(s=>s.id===id);
+  state.editId = id;
+  state.editBuf = {...s};
+  render();
+}
+
+function saveEdit() {
+  const idx = state.stores.findIndex(s=>s.id===state.editId);
+  if (idx>=0) state.stores[idx] = {...state.editBuf};
+  state.editId = null;
+  render();
+}
+
+function cancelEdit() { state.editId=null; render(); }
+
+function deleteStore(id) {
+  if (!confirm("Eliminar esta tienda?")) return;
+  state.stores = state.stores.filter(s=>s.id!==id);
+  if (state.sel===id) state.sel=null;
+  render();
+}
+
+function resetStores() {
+  if (!confirm("Restaurar todas las tiendas a los datos originales?")) return;
+  state.stores = JSON.parse(JSON.stringify(STORES_DEFAULT));
+  render();
+}
+
+function handleUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws);
+      let count = 0;
+      rows.forEach(row => {
+        const keys = Object.keys(row).map(k=>k.toLowerCase().trim());
+        const getVal = (patterns) => {
+          for (const p of patterns) {
+            const k = Object.keys(row).find(k=>k.toLowerCase().includes(p));
+            if (k && row[k]!==undefined && row[k]!=='') return row[k];
+          }
+          return null;
+        };
+        const pos = getVal(['pos','codigo','cod']);
+        if (!pos) return;
+        const idx = state.stores.findIndex(s=>s.id===+pos);
+        if (idx<0) return;
+        const m2 = getVal(['m2','metros','mts','m_']);
+        const vta = getVal(['vta','venta','ventas','v_']);
+        const h = getVal(['hombre','%h','pct_h','porc']);
+        if (m2!==null) state.stores[idx].m = +m2||null;
+        if (vta!==null) state.stores[idx].v = +vta;
+        if (h!==null) state.stores[idx].h = +h;
+        count++;
+      });
+      state.uploadMsg = `OK: ${count} tiendas actualizadas`;
+    } catch(err) {
+      state.uploadMsg = `Error procesando el archivo: ${err.message}`;
+    }
+    render();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function attachEvents() {
+  // Events are inline in HTML via onclick/oninput
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
